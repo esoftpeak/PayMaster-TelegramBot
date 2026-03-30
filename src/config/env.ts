@@ -12,4 +12,11 @@ function requireEnv(name: string): string {
 
 export const env = {
   telegramBotToken: requireEnv("TELEGRAM_BOT_TOKEN"),
+  /** Project URL: https://xxxx.supabase.co */
+  supabaseUrl: requireEnv("SUPABASE_URL"),
+  /**
+   * Service role key (secret). Required for server-side DB access with RLS bypass.
+   * Never commit this value or expose it to clients.
+   */
+  supabaseServiceRoleKey: requireEnv("SUPABASE_SERVICE_ROLE_KEY"),
 } as const;

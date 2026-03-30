@@ -3,7 +3,8 @@ import { registerTelegramProfile } from "./content/profile";
 import { registerHandlers } from "./handlers/register";
 
 export async function createBot(token: string): Promise<TelegramBot> {
-  const bot = new TelegramBot(token, { polling: true });
+  // Do not start polling until handlers are registered; otherwise /start can be dropped.
+  const bot = new TelegramBot(token, { polling: { autoStart: false } });
   try {
     await registerTelegramProfile(bot);
   } catch (err) {
@@ -13,5 +14,6 @@ export async function createBot(token: string): Promise<TelegramBot> {
     );
   }
   registerHandlers(bot);
+  await bot.startPolling();
   return bot;
 }

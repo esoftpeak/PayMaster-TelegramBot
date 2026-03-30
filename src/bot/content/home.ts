@@ -62,7 +62,7 @@ export function buildScreenHtml(screen: MenuScreen): string {
       ].join("\n");
     case "payments":
       return [
-        "<b>Cards & payments</b>",
+        "<b>Cards &amp; payments</b>",
         "",
         "Card-on-file verification and direct charges will run through your configured gateway.",
         "",

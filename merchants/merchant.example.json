@@ -1,0 +1,9 @@
+{
+  "id": "example-merchant",
+  "displayName": "Example Store",
+  "gateway": "stripe",
+  "stripeSecretKey": "sk_test_...",
+  "stripePublishableKey": "pk_test_...",
+  "squareApplicationId": "",
+  "squareAccessToken": ""
+}

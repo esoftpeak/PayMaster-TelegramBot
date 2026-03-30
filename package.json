@@ -1,7 +1,7 @@
 {
-  "name": "typescript-structure",
+  "name": "paymaster-telegram-bot",
   "version": "1.0.0",
-  "main": "index.js",
+  "main": "dist/index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "dev": "nodemon",
@@ -10,7 +10,7 @@
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "description": "",
+  "description": "Telegram admin bot for Stripe/Square card operations and multi-merchant config",
   "devDependencies": {
     "@types/node": "^22.15.17",
     "@types/node-telegram-bot-api": "^0.64.8",

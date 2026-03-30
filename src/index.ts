@@ -11,7 +11,7 @@ async function main(): Promise<void> {
   }
   console.log("Supabase connection OK.");
 
-  createBot(env.telegramBotToken);
+  await createBot(env.telegramBotToken);
   console.log("PayMaster bot is running (polling).");
 }
 

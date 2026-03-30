@@ -1,8 +1,8 @@
 import TelegramBot, { Message } from "node-telegram-bot-api";
+import { sendHomeMessage } from "../content/sendHome";
 
 export function registerStartHandler(bot: TelegramBot): void {
   bot.onText(/\/start/, (msg: Message) => {
-    const chatId = msg.chat.id;
-    void bot.sendMessage(chatId, "Welcome! Use the menu when available.");
+    void sendHomeMessage(bot, msg.chat.id);
   });
 }

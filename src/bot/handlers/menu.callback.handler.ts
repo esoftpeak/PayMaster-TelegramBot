@@ -4,6 +4,11 @@ import {
   keyboardForScreen,
   parseMenuCallback,
 } from "../content/home";
+import {
+  handleFlowCallback,
+  renderMerchantsScreen,
+  renderPaymentsScreen,
+} from "../flows/merchantFlow";
 
 export function registerMenuCallbackHandler(bot: TelegramBot): void {
   bot.on("callback_query", (query) => {
@@ -13,9 +18,24 @@ export function registerMenuCallbackHandler(bot: TelegramBot): void {
         return;
       }
 
+      const flowHandled = await handleFlowCallback(bot, query, data);
+      if (flowHandled) {
+        return;
+      }
+
       const screen = parseMenuCallback(data);
       if (screen === null) {
         await bot.answerCallbackQuery(query.id);
+        return;
+      }
+
+      if (screen === "merchants") {
+        await renderMerchantsScreen(bot, query);
+        return;
+      }
+
+      if (screen === "payments") {
+        await renderPaymentsScreen(bot, query);
         return;
       }
 

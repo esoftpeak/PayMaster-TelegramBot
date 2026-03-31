@@ -56,17 +56,13 @@ export function buildScreenHtml(screen: MenuScreen): string {
       return [
         "<b>Merchants</b>",
         "",
-        "Switch between merchant accounts and manage gateway credentials (from your database).",
-        "",
-        "<i>Connection flows will appear here as they are implemented.</i>",
+        "Choose which business you’re working with. Operators see the live list after this screen loads.",
       ].join("\n");
     case "payments":
       return [
         "<b>Cards &amp; payments</b>",
         "",
-        "Card-on-file verification and direct charges will run through your configured gateway.",
-        "",
-        "<i>Transaction history and actions will appear here as they are implemented.</i>",
+        "Verify cards and run charges for the merchant you selected. Operators see the full screen after this loads.",
       ].join("\n");
     case "help":
       return [
@@ -77,6 +73,9 @@ export function buildScreenHtml(screen: MenuScreen): string {
         "• /menu — Main menu",
         "• /help — This screen",
         "• /admin — Operator accounts (list, add, remove)",
+        "• /merchant — Merchants (list; admins add new ones)",
+        "",
+        "Operators: open <b>Merchants</b> to choose a business, then <b>Cards &amp; payments</b> for verify and test charges (simulated until your gateway is connected).",
         "",
         "Security: never send full card numbers in chat. Use hosted payment flows from Stripe or Square.",
         "",

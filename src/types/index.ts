@@ -1,3 +1,3 @@
 /** Shared domain and API DTOs. */
 
-export {};
+export type { NormalizedPaymentResult, GatewayPaymentService } from "../services/payment/types";

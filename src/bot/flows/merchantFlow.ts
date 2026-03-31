@@ -1,0 +1,351 @@
+import type TelegramBot from "node-telegram-bot-api";
+import type { CallbackQuery, InlineKeyboardMarkup } from "node-telegram-bot-api";
+import { canViewAdminPanel, resolveTelegramAdminAuth } from "../auth/telegramAdmin";
+import { listActiveMerchants, getMerchantById, type MerchantPublic } from "../../db/merchants";
+import { createStubGatewayPaymentService } from "../../services/payment";
+import type { NormalizedPaymentResult } from "../../services/payment";
+import {
+  clearSelectedMerchant,
+  getSelectedMerchantId,
+  setSelectedMerchantId,
+} from "../session/operatorSession";
+
+const CALLBACK = {
+  home: "pm:home",
+  merchants: "pm:merchants",
+  payments: "pm:payments",
+  help: "pm:help",
+} as const;
+
+const stubGateway = createStubGatewayPaymentService();
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function isUuid(s: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(s);
+}
+
+export type FlowAction =
+  | { kind: "selectMerchant"; merchantId: string }
+  | { kind: "clearSelection" }
+  | { kind: "verifyStub" }
+  | { kind: "chargeStub"; amountCents: number };
+
+export function parseFlowCallback(data: string): FlowAction | null {
+  if (data.startsWith("pm:s:")) {
+    const rest = data.slice(5);
+    if (rest === "clear") {
+      return { kind: "clearSelection" };
+    }
+    if (isUuid(rest)) {
+      return { kind: "selectMerchant", merchantId: rest };
+    }
+    return null;
+  }
+  if (data === "pm:stub:v") {
+    return { kind: "verifyStub" };
+  }
+  if (data.startsWith("pm:stub:c:")) {
+    const cents = Number.parseInt(data.slice(10), 10);
+    if (!Number.isFinite(cents) || cents < 0) {
+      return null;
+    }
+    return { kind: "chargeStub", amountCents: cents };
+  }
+  return null;
+}
+
+export function buildMerchantsScreenHtml(
+  merchants: MerchantPublic[],
+  selectedId: string | undefined,
+): string {
+  const lines = [
+    "<b>Merchants</b>",
+    "",
+    "Pick which business you’re working with for <b>verify</b> and <b>charge</b>. Payment credentials stay on the server — this chat never shows them.",
+    "",
+  ];
+  if (merchants.length === 0) {
+    lines.push("<i>No merchants yet.</i> Ask a bot admin to add your first one.");
+  } else if (selectedId === undefined) {
+    lines.push("<b>Selected</b>: <i>none</i> — pick a row below.");
+  } else {
+    const sel = merchants.find((m) => m.id === selectedId);
+    if (sel === undefined) {
+      lines.push("<b>Selected</b>: <i>stale selection</i> — choose again.");
+    } else {
+      const cred = sel.credentialsConfigured ? "connected" : "simulation only until gateway is set up";
+      lines.push(
+        `<b>Selected</b>: ${escapeHtml(sel.display_name)} (${sel.gateway}) — credentials: ${escapeHtml(cred)}`,
+      );
+    }
+  }
+  return lines.join("\n");
+}
+
+export function merchantsKeyboard(
+  merchants: MerchantPublic[],
+  selectedId: string | undefined,
+): InlineKeyboardMarkup {
+  const plainRows: { text: string; callback_data: string }[][] = merchants.map((m) => {
+    const mark = selectedId === m.id ? "✓ " : "";
+    const gw = m.gateway === "stripe" ? "Stripe" : "Square";
+    const short = m.slug.length > 18 ? `${m.slug.slice(0, 16)}…` : m.slug;
+    const label = `${mark}${m.display_name} · ${gw} (${short})`;
+    return [{ text: label, callback_data: `pm:s:${m.id}` }];
+  });
+
+  plainRows.push([{ text: "Clear selection", callback_data: "pm:s:clear" }]);
+  plainRows.push([
+    { text: "Cards & payments", callback_data: CALLBACK.payments },
+    { text: "Home", callback_data: CALLBACK.home },
+  ]);
+  return { inline_keyboard: plainRows };
+}
+
+export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string {
+  const lines = [
+    "<b>Cards &amp; payments</b>",
+    "",
+    "Right now actions run as <b>simulations</b> — you’ll get a clear result in chat, and records are saved for testing. When your gateway is connected for real, the same buttons will drive live flows.",
+    "",
+  ];
+  if (selected === null) {
+    lines.push("<b>Merchant</b>: <i>none selected</i>");
+    lines.push("");
+    lines.push("Open <b>Merchants</b> and pick a row first.");
+  } else if (!selected.is_active) {
+    lines.push(`<b>Merchant</b>: ${escapeHtml(selected.display_name)} <i>(inactive)</i>`);
+    lines.push("");
+    lines.push("This merchant is turned off. Choose an active one under <b>Merchants</b>.");
+  } else {
+    const cred = selected.credentialsConfigured ? "connected" : "simulation only until gateway is set up";
+    lines.push(`<b>Merchant</b>: ${escapeHtml(selected.display_name)}`);
+    lines.push(`<b>Gateway</b>: ${escapeHtml(selected.gateway)} — ${escapeHtml(cred)}`);
+    lines.push("");
+    lines.push("• <b>Verify card</b> — practice run for saving a card on file.");
+    lines.push("• <b>Charge</b> — practice run for a small test amount.");
+  }
+  return lines.join("\n");
+}
+
+export function paymentsKeyboard(hasSelectedMerchant: boolean): InlineKeyboardMarkup {
+  const rows: { text: string; callback_data: string }[][] = [];
+  if (hasSelectedMerchant) {
+    rows.push([{ text: "Verify card (simulation)", callback_data: "pm:stub:v" }]);
+    rows.push([
+      { text: "Charge $1.00 (test)", callback_data: "pm:stub:c:100" },
+      { text: "Charge $5.00 (test)", callback_data: "pm:stub:c:500" },
+    ]);
+  }
+  rows.push([
+    { text: "Merchants", callback_data: CALLBACK.merchants },
+    { text: "Home", callback_data: CALLBACK.home },
+  ]);
+  return { inline_keyboard: rows };
+}
+
+function formatNormalizedResultHtml(result: NormalizedPaymentResult): string {
+  const status = result.ok ? "OK" : "Failed";
+  const refs = JSON.stringify(result.gatewayRefs, null, 2);
+  const payload = result.payload !== undefined ? JSON.stringify(result.payload, null, 2) : "";
+  const blocks = [
+    `<b>${escapeHtml(status)}</b> · ${escapeHtml(result.operation)} · ${escapeHtml(result.gateway)}`,
+    "",
+    escapeHtml(result.message),
+    "",
+    "<b>Correlation</b>",
+    `<code>${escapeHtml(result.correlationId)}</code>`,
+    "",
+    "<b>Gateway refs</b>",
+    `<pre>${escapeHtml(refs)}</pre>`,
+  ];
+  if (payload.length > 0) {
+    blocks.push("", "<b>Payload</b>", `<pre>${escapeHtml(payload)}</pre>`);
+  }
+  return blocks.join("\n");
+}
+
+async function editOrSend(
+  bot: TelegramBot,
+  query: CallbackQuery,
+  text: string,
+  markup: InlineKeyboardMarkup,
+): Promise<void> {
+  const chatId = query.message!.chat.id;
+  const messageId = query.message!.message_id;
+  try {
+    await bot.editMessageText(text, {
+      chat_id: chatId,
+      message_id: messageId,
+      parse_mode: "HTML",
+      reply_markup: markup,
+    });
+  } catch {
+    await bot.sendMessage(chatId, text, {
+      parse_mode: "HTML",
+      reply_markup: markup,
+    });
+  }
+}
+
+export async function renderMerchantsScreen(
+  bot: TelegramBot,
+  query: CallbackQuery,
+  options?: { skipAnswer?: boolean },
+): Promise<void> {
+  const from = query.from;
+  if (from === undefined) {
+    if (!options?.skipAnswer) {
+      await bot.answerCallbackQuery(query.id);
+    }
+    return;
+  }
+  const auth = await resolveTelegramAdminAuth(from.id);
+  if (!canViewAdminPanel(auth)) {
+    await bot.answerCallbackQuery(query.id, {
+      text: "Operators only. Ask an admin to grant access (/admin add).",
+      show_alert: true,
+    });
+    return;
+  }
+  if (!options?.skipAnswer) {
+    await bot.answerCallbackQuery(query.id);
+  }
+  try {
+    const merchants = await listActiveMerchants();
+    const selectedId = getSelectedMerchantId(from.id);
+    const html = buildMerchantsScreenHtml(merchants, selectedId);
+    const markup = merchantsKeyboard(merchants, selectedId);
+    await editOrSend(bot, query, html, markup);
+  } catch (err) {
+    console.error("renderMerchantsScreen:", err);
+    await bot.sendMessage(query.message!.chat.id, "Couldn’t load merchants. Try again in a moment.");
+  }
+}
+
+export async function renderPaymentsScreen(
+  bot: TelegramBot,
+  query: CallbackQuery,
+  options?: { skipAnswer?: boolean },
+): Promise<void> {
+  const from = query.from;
+  if (from === undefined) {
+    if (!options?.skipAnswer) {
+      await bot.answerCallbackQuery(query.id);
+    }
+    return;
+  }
+  const auth = await resolveTelegramAdminAuth(from.id);
+  if (!canViewAdminPanel(auth)) {
+    await bot.answerCallbackQuery(query.id, {
+      text: "Operators only. Ask an admin to grant access (/admin add).",
+      show_alert: true,
+    });
+    return;
+  }
+  if (!options?.skipAnswer) {
+    await bot.answerCallbackQuery(query.id);
+  }
+  try {
+    const selectedId = getSelectedMerchantId(from.id);
+    const selected =
+      selectedId !== undefined ? await getMerchantById(selectedId) : null;
+    const html = buildPaymentsScreenHtml(selected);
+    const canAct = selected !== null && selected.is_active;
+    const markup = paymentsKeyboard(canAct);
+    await editOrSend(bot, query, html, markup);
+  } catch (err) {
+    console.error("renderPaymentsScreen:", err);
+    await bot.sendMessage(query.message!.chat.id, "Couldn’t open that screen. Try again.");
+  }
+}
+
+export async function handleFlowCallback(bot: TelegramBot, query: CallbackQuery, data: string): Promise<boolean> {
+  const action = parseFlowCallback(data);
+  if (action === null) {
+    return false;
+  }
+
+  const from = query.from;
+  if (from === undefined) {
+    await bot.answerCallbackQuery(query.id);
+    return true;
+  }
+
+  const auth = await resolveTelegramAdminAuth(from.id);
+  if (!canViewAdminPanel(auth)) {
+    await bot.answerCallbackQuery(query.id, {
+      text: "Operators only.",
+      show_alert: true,
+    });
+    return true;
+  }
+
+  const chatId = query.message!.chat.id;
+
+  if (action.kind === "clearSelection") {
+    clearSelectedMerchant(from.id);
+    await bot.answerCallbackQuery(query.id);
+    await renderMerchantsScreen(bot, query, { skipAnswer: true });
+    return true;
+  }
+
+  if (action.kind === "selectMerchant") {
+    setSelectedMerchantId(from.id, action.merchantId);
+    await bot.answerCallbackQuery(query.id);
+    await renderMerchantsScreen(bot, query, { skipAnswer: true });
+    return true;
+  }
+
+  if (action.kind === "verifyStub" || action.kind === "chargeStub") {
+    const selectedId = getSelectedMerchantId(from.id);
+    if (selectedId === undefined) {
+      await bot.answerCallbackQuery(query.id, {
+        text: "Select a merchant under Merchants first.",
+        show_alert: true,
+      });
+      return true;
+    }
+
+    await bot.answerCallbackQuery(query.id);
+
+    let result: NormalizedPaymentResult;
+    try {
+      if (action.kind === "verifyStub") {
+        result = await stubGateway.verifyCard({ merchantId: selectedId });
+      } else {
+        result = await stubGateway.charge({
+          merchantId: selectedId,
+          amountCents: action.amountCents,
+          currency: "usd",
+          description: "Telegram stub charge",
+        });
+      }
+    } catch (err) {
+      console.error("stub gateway:", err);
+      await bot.sendMessage(
+        chatId,
+        "<b>Something went wrong</b>\n\nThat action didn’t finish. Try again in a moment.",
+        { parse_mode: "HTML" },
+      );
+      return true;
+    }
+
+    await bot.sendMessage(chatId, formatNormalizedResultHtml(result), { parse_mode: "HTML" });
+
+    try {
+      await renderPaymentsScreen(bot, query, { skipAnswer: true });
+    } catch {
+      // ignore edit errors after send
+    }
+    return true;
+  }
+
+  return false;
+}

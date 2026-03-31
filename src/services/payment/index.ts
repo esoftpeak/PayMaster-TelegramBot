@@ -1,6 +1,2 @@
-/**
- * Cross-gateway payment orchestration and normalized responses.
- * Implementations will be added in subsequent steps.
- */
-
-export {};
+export type { GatewayPaymentService, NormalizedPaymentResult } from "./types";
+export { createStubGatewayPaymentService } from "./gatewayStub";

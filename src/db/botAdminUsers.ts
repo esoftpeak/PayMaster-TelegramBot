@@ -182,3 +182,31 @@ export async function updateBotAdminRole(
     role: data.role as BotAdminRole,
   };
 }
+
+export async function updateBotAdminUsername(
+  telegramUserId: string | number | bigint,
+  telegramUsername: string | null,
+): Promise<BotAdminUser | null> {
+  const supabase = getSupabaseClient();
+  const idForCol = telegramUserIdForColumn(telegramUserId);
+
+  const { data, error } = await supabase
+    .from("bot_admin_users")
+    .update({ telegram_username: telegramUsername })
+    .eq("telegram_user_id", idForCol)
+    .select("id, telegram_user_id, telegram_username, role, is_active, created_at")
+    .maybeSingle();
+
+  if (error !== null) {
+    throw new Error(error.message);
+  }
+  if (data === null) {
+    return null;
+  }
+
+  return {
+    ...data,
+    telegram_user_id: normalizeTelegramUserId(data.telegram_user_id as string | number | bigint),
+    role: data.role as BotAdminRole,
+  };
+}

@@ -13,6 +13,10 @@ import {
   isInactiveOperator,
   resolveTelegramAdminAuth,
 } from "../auth/telegramAdmin";
+import {
+  resolveAndStoreTelegramUsername,
+  resolveAndStoreUsernamesForAdmins,
+} from "../utils/resolveOperatorUsername";
 
 function escapeHtml(s: string): string {
   return s
@@ -199,17 +203,28 @@ async function handleAdminCommand(bot: TelegramBot, msg: Message): Promise<void>
         );
         return;
       }
-      const lines = ["<b>Active operators</b>", ""];
-      for (const a of admins) {
-        const handle =
+      const enriched = await resolveAndStoreUsernamesForAdmins(bot, admins);
+      const lines = [
+        "<b>Active operators</b>",
+        "",
+        "<i>Usernames come from Telegram when the user has used this bot and has a public @username.</i>",
+        "",
+      ];
+      for (const a of enriched) {
+        const uname =
           a.telegram_username !== null && a.telegram_username.length > 0
             ? `@${escapeHtml(a.telegram_username)}`
-            : "—";
+            : "<i>not available</i>";
         lines.push(
-          `• <code>${escapeHtml(a.telegram_user_id)}</code> ${handle} — ${escapeHtml(a.role)}`,
+          [
+            `• <b>ID</b> <code>${escapeHtml(a.telegram_user_id)}</code>`,
+            `<b>Username</b> ${uname}`,
+            `<b>Role</b> ${escapeHtml(a.role)}`,
+          ].join("\n"),
         );
+        lines.push("");
       }
-      await bot.sendMessage(chatId, lines.join("\n"), { parse_mode: "HTML" });
+      await bot.sendMessage(chatId, lines.join("\n").trimEnd(), { parse_mode: "HTML" });
     } catch (err) {
       console.error("listActiveBotAdmins:", err);
       await bot.sendMessage(chatId, "Could not load operators. Please try again.");
@@ -235,13 +250,19 @@ async function handleAdminCommand(bot: TelegramBot, msg: Message): Promise<void>
           role: parsed.role,
           isActive: true,
         });
+        const withName = await resolveAndStoreTelegramUsername(bot, row);
+        const unameLine =
+          withName.telegram_username !== null && withName.telegram_username.length > 0
+            ? `<b>Username</b>: @${escapeHtml(withName.telegram_username)}`
+            : "<b>Username</b>: <i>not available yet</i> (they must open this bot at least once, and may need a public @username)";
         await bot.sendMessage(
           chatId,
           [
             "Added or updated operator.",
             "",
-            `<b>User id</b>: <code>${escapeHtml(row.telegram_user_id)}</code>`,
-            `<b>Role</b>: ${escapeHtml(describeRole(row.role))}`,
+            `<b>User id</b>: <code>${escapeHtml(withName.telegram_user_id)}</code>`,
+            unameLine,
+            `<b>Role</b>: ${escapeHtml(describeRole(withName.role))}`,
           ].join("\n"),
           { parse_mode: "HTML" },
         );

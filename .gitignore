@@ -1,9 +1,6 @@
 node_modules
 .env
 
-# Local audit logs (first-time /start usernames)
-
-
 # Local merchant configs with live secrets (keep example committed)
 merchants/*.json
 !merchants/merchant.example.json

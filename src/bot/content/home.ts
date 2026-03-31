@@ -76,6 +76,7 @@ export function buildScreenHtml(screen: MenuScreen): string {
         "• /start — Home",
         "• /menu — Main menu",
         "• /help — This screen",
+        "• /admin — Operator accounts (list, add, remove)",
         "",
         "Security: never send full card numbers in chat. Use hosted payment flows from Stripe or Square.",
         "",

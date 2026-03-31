@@ -37,5 +37,6 @@ export async function registerTelegramProfile(bot: TelegramBot): Promise<void> {
     { command: "start", description: "Home — main menu" },
     { command: "menu", description: "Open main menu" },
     { command: "help", description: "Help & information" },
+    { command: "admin", description: "Operators: list, add, remove users" },
   ]);
 }

@@ -165,12 +165,21 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
     lines.push(`<b>Merchant</b>: ${escapeHtml(selected.display_name)}`);
     lines.push(`<b>Gateway</b>: ${escapeHtml(selected.gateway)} — ${escapeHtml(cred)}`);
     lines.push("");
-    lines.push(
-      "• <b>Verify card</b> — Stripe opens a secure Checkout link; after you finish, the card is marked verified via webhook.",
-    );
-    lines.push(
-      "• <b>Charge</b> — Stripe merchants: real charge against the <b>latest verified</b> saved card (test/live matches your keys). Square: still simulated.",
-    );
+    if (selected.gateway === "stripe") {
+      lines.push(
+        "• <b>Verify card</b> — Stripe Checkout (setup); webhook completes verification.",
+      );
+      lines.push(
+        "• <b>Charge</b> — real Stripe charge on the <b>latest verified</b> saved card (test vs live follows your API keys).",
+      );
+    } else {
+      lines.push(
+        "• <b>Verify card</b> — opens a hosted Square card form (Web Payments SDK); card is saved on the Square customer.",
+      );
+      lines.push(
+        "• <b>Charge</b> — real Square payment on the <b>latest verified</b> saved card (sandbox vs production follows <code>SQUARE_ENVIRONMENT</code> and your keys).",
+      );
+    }
   }
   return lines.join("\n");
 }

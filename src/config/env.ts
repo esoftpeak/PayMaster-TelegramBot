@@ -47,4 +47,9 @@ export const env = {
   publicBaseUrl: optionalEnv("PUBLIC_BASE_URL"),
   /** Port for the small HTTP server (webhooks + return pages). */
   httpPort: httpPortFromEnv(),
+  /**
+   * Square API environment for all Square merchants in this process.
+   * Use `sandbox` (default) with sandbox credentials; `production` for live.
+   */
+  squareEnvironment: process.env.SQUARE_ENVIRONMENT === "production" ? "production" : "sandbox",
 } as const;

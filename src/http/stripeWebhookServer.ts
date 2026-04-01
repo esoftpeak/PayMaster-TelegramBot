@@ -1,5 +1,6 @@
 import http from "http";
 import { env } from "../config/env";
+import { tryHandleSquareCardRoutes } from "./squareCardRoutes";
 import { handleStripeWebhookRequest } from "../webhooks/stripeCheckoutWebhook";
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
@@ -43,6 +44,11 @@ export function startStripeWebhookServer(): http.Server {
       }
 
       const pathname = url.pathname;
+
+      const squareHandled = await tryHandleSquareCardRoutes(req, res, pathname);
+      if (squareHandled) {
+        return;
+      }
 
       if (req.method === "GET" && pathname === "/health") {
         res.writeHead(200, { "Content-Type": "text/plain; charset=utf-8" }).end("ok");
@@ -88,7 +94,9 @@ export function startStripeWebhookServer(): http.Server {
   });
 
   server.listen(env.httpPort, () => {
-    console.log(`HTTP listening on port ${env.httpPort} (Stripe webhooks + Checkout return pages).`);
+    console.log(
+      `HTTP listening on port ${env.httpPort} (Stripe webhooks, Square card form, Checkout return pages).`,
+    );
   });
 
   return server;

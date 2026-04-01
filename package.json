@@ -23,6 +23,7 @@
     "@supabase/supabase-js": "^2.101.0",
     "dotenv": "^17.3.1",
     "node-telegram-bot-api": "^0.66.0",
+    "square": "^44.0.1",
     "stripe": "^21.0.1"
   }
 }

@@ -127,6 +127,29 @@ export async function getLatestVerifiedStripeLinkedCard(merchantId: string): Pro
   return mapLinkedCardRow(data as Record<string, unknown>);
 }
 
+/** Latest verified Square card with a saved card id (for Payments API). */
+export async function getLatestVerifiedSquareLinkedCard(merchantId: string): Promise<LinkedCardRow | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("linked_cards")
+    .select(LINKED_CARD_ROW_SELECT)
+    .eq("merchant_id", merchantId)
+    .eq("gateway", "square")
+    .eq("auth_status", "verified")
+    .not("gateway_payment_method_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw new Error(error.message);
+  }
+  if (data === null) {
+    return null;
+  }
+  return mapLinkedCardRow(data as Record<string, unknown>);
+}
+
 export async function updateLinkedCard(id: string, patch: LinkedCardPatch): Promise<void> {
   const supabase = getSupabaseClient();
   const dbPatch: Record<string, unknown> = {};

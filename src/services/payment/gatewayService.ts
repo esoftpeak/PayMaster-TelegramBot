@@ -3,6 +3,8 @@ import { getMerchantCredentialsById } from "../../db/merchants";
 import type { GatewayPaymentService, NormalizedPaymentResult } from "./types";
 import { verifyStripeCardSetup } from "./stripeGateway";
 import { chargeStripeWithSavedCard } from "./stripeCharge";
+import { verifySquareCardSetup } from "./squareVerify";
+import { chargeSquareWithSavedCard } from "./squareCharge";
 import { createStubGatewayPaymentService } from "./gatewayStub";
 
 const stub = createStubGatewayPaymentService();
@@ -25,6 +27,9 @@ export function createGatewayPaymentService(): GatewayPaymentService {
 
       if (merchant.gateway === "stripe") {
         return verifyStripeCardSetup({ merchant });
+      }
+      if (merchant.gateway === "square") {
+        return verifySquareCardSetup({ merchant });
       }
       return stub.verifyCard(input);
     },
@@ -49,6 +54,14 @@ export function createGatewayPaymentService(): GatewayPaymentService {
       }
       if (merchant.gateway === "stripe") {
         return chargeStripeWithSavedCard({
+          merchant,
+          amountCents: input.amountCents,
+          currency: input.currency,
+          description: input.description,
+        });
+      }
+      if (merchant.gateway === "square") {
+        return chargeSquareWithSavedCard({
           merchant,
           amountCents: input.amountCents,
           currency: input.currency,

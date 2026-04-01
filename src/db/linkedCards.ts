@@ -67,23 +67,7 @@ export async function insertLinkedCard(row: LinkedCardInsert): Promise<{ id: str
   return { id: (data as { id: string }).id };
 }
 
-export async function getLinkedCardById(id: string): Promise<LinkedCardRow | null> {
-  const supabase = getSupabaseClient();
-  const { data, error } = await supabase
-    .from("linked_cards")
-    .select(
-      "id, merchant_id, gateway, gateway_customer_id, stripe_checkout_session_id, gateway_payment_method_id, auth_status, auth_amount_cents, currency, cvc_check, decline_code, gateway_metadata",
-    )
-    .eq("id", id)
-    .maybeSingle();
-
-  if (error !== null) {
-    throw new Error(error.message);
-  }
-  if (data === null) {
-    return null;
-  }
-  const row = data as Record<string, unknown>;
+function mapLinkedCardRow(row: Record<string, unknown>): LinkedCardRow {
   return {
     id: row.id as string,
     merchant_id: row.merchant_id as string,
@@ -98,6 +82,49 @@ export async function getLinkedCardById(id: string): Promise<LinkedCardRow | nul
     decline_code: (row.decline_code as string | null) ?? null,
     gateway_metadata: (row.gateway_metadata as Record<string, unknown>) ?? {},
   };
+}
+
+const LINKED_CARD_ROW_SELECT =
+  "id, merchant_id, gateway, gateway_customer_id, stripe_checkout_session_id, gateway_payment_method_id, auth_status, auth_amount_cents, currency, cvc_check, decline_code, gateway_metadata";
+
+export async function getLinkedCardById(id: string): Promise<LinkedCardRow | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("linked_cards")
+    .select(LINKED_CARD_ROW_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw new Error(error.message);
+  }
+  if (data === null) {
+    return null;
+  }
+  return mapLinkedCardRow(data as Record<string, unknown>);
+}
+
+/** Latest verified Stripe card with a saved payment method (for off-session charges). */
+export async function getLatestVerifiedStripeLinkedCard(merchantId: string): Promise<LinkedCardRow | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("linked_cards")
+    .select(LINKED_CARD_ROW_SELECT)
+    .eq("merchant_id", merchantId)
+    .eq("gateway", "stripe")
+    .eq("auth_status", "verified")
+    .not("gateway_payment_method_id", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw new Error(error.message);
+  }
+  if (data === null) {
+    return null;
+  }
+  return mapLinkedCardRow(data as Record<string, unknown>);
 }
 
 export async function updateLinkedCard(id: string, patch: LinkedCardPatch): Promise<void> {

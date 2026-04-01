@@ -75,7 +75,7 @@ export function buildScreenHtml(screen: MenuScreen): string {
         "• /admin — Operator accounts (list, add, remove)",
         "• /merchant — Merchants (list; admins add new ones)",
         "",
-        "Operators: open <b>Merchants</b> to choose a business, then <b>Cards &amp; payments</b> for Stripe Checkout verify (link) and test charges where implemented.",
+        "Operators: open <b>Merchants</b> to choose a business, then <b>Cards &amp; payments</b> for Stripe Checkout verify and real charges (Stripe) or simulated charges (Square).",
         "",
         "Security: never send full card numbers in chat. Use hosted payment flows from Stripe or Square.",
         "",

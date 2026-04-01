@@ -19,6 +19,39 @@ const CALLBACK = {
 
 const paymentGateway = createGatewayPaymentService();
 
+/** Auto-delete friendly charge success toast after this delay. */
+const CHARGE_SUCCESS_TOAST_MS = 5000;
+
+function friendlyChargeSuccessHtml(amountCents: number, currency: string): string {
+  const code = currency.trim().toUpperCase() || "USD";
+  let amountDisplay: string;
+  try {
+    amountDisplay = new Intl.NumberFormat("en-US", {
+      style: "currency",
+      currency: code,
+    }).format(amountCents / 100);
+  } catch {
+    amountDisplay = `${(amountCents / 100).toFixed(2)} ${code}`;
+  }
+  return [
+    "<b>Payment successful</b>",
+    "",
+    `We charged <b>${escapeHtml(amountDisplay)}</b>.`,
+    "",
+    `<i>This message will disappear in ${CHARGE_SUCCESS_TOAST_MS / 1000} seconds.</i>`,
+  ].join("\n");
+}
+
+function currencyFromChargeResult(result: NormalizedPaymentResult): string {
+  if (result.payload !== undefined) {
+    const c = (result.payload as Record<string, unknown>).currency;
+    if (typeof c === "string" && c.length > 0) {
+      return c;
+    }
+  }
+  return "usd";
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
@@ -135,7 +168,9 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
     lines.push(
       "• <b>Verify card</b> — Stripe opens a secure Checkout link; after you finish, the card is marked verified via webhook.",
     );
-    lines.push("• <b>Charge</b> — practice run for a small test amount.");
+    lines.push(
+      "• <b>Charge</b> — Stripe merchants: real charge against the <b>latest verified</b> saved card (test/live matches your keys). Square: still simulated.",
+    );
   }
   return lines.join("\n");
 }
@@ -362,7 +397,17 @@ export async function handleFlowCallback(bot: TelegramBot, query: CallbackQuery,
       return true;
     }
 
-    await bot.sendMessage(chatId, formatNormalizedResultHtml(result), { parse_mode: "HTML" });
+    if (action.kind === "chargeStub" && result.ok && result.operation === "charge") {
+      const currency = currencyFromChargeResult(result);
+      const sent = await bot.sendMessage(chatId, friendlyChargeSuccessHtml(action.amountCents, currency), {
+        parse_mode: "HTML",
+      });
+      setTimeout(() => {
+        void bot.deleteMessage(chatId, sent.message_id).catch(() => undefined);
+      }, CHARGE_SUCCESS_TOAST_MS);
+    } else {
+      await bot.sendMessage(chatId, formatNormalizedResultHtml(result), { parse_mode: "HTML" });
+    }
 
     try {
       await renderPaymentsScreen(bot, query, { skipAnswer: true });

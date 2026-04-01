@@ -1,5 +1,6 @@
 import http from "http";
 import { env } from "../config/env";
+import { stripeSetupCancelHtml, stripeSetupSuccessHtml } from "./hostedPagesHtml";
 import { tryHandleSquareCardRoutes } from "./squareCardRoutes";
 import { handleStripeWebhookRequest } from "../webhooks/stripeCheckoutWebhook";
 
@@ -15,21 +16,6 @@ function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
     req.on("error", reject);
   });
 }
-
-const setupSuccessHtml = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Card saved</title></head>
-<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem;">
-<p><strong>Card setup complete.</strong></p>
-<p>You can close this tab and return to Telegram.</p>
-</body></html>`;
-
-const setupCancelHtml = `<!DOCTYPE html>
-<html lang="en">
-<head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><title>Canceled</title></head>
-<body style="font-family:system-ui,sans-serif;max-width:32rem;margin:3rem auto;padding:0 1rem;">
-<p>Checkout was canceled. You can start again from the bot.</p>
-</body></html>`;
 
 export function startStripeWebhookServer(): http.Server {
   const server = http.createServer((req, res) => {
@@ -58,14 +44,14 @@ export function startStripeWebhookServer(): http.Server {
       if (req.method === "GET" && pathname === "/stripe/setup-success") {
         res
           .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-          .end(setupSuccessHtml);
+          .end(stripeSetupSuccessHtml);
         return;
       }
 
       if (req.method === "GET" && pathname === "/stripe/setup-cancel") {
         res
           .writeHead(200, { "Content-Type": "text/html; charset=utf-8" })
-          .end(setupCancelHtml);
+          .end(stripeSetupCancelHtml);
         return;
       }
 

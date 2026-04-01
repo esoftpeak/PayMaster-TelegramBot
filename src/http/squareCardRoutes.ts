@@ -1,9 +1,9 @@
 import type http from "http";
-import { env } from "../config/env";
 import { getMerchantCredentialsById } from "../db/merchants";
 import { completeSquareCardFromNonce } from "../services/payment/squareCompleteCard";
 import { createSquareClient, getDefaultSquareLocationId } from "../services/payment/squareClient";
 import { verifySignedLinkToken } from "../utils/signedLinkToken";
+import { buildSquareSaveCardPage } from "./hostedPagesHtml";
 
 function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
   return new Promise((resolve, reject) => {
@@ -16,95 +16,6 @@ function readRequestBody(req: http.IncomingMessage): Promise<Buffer> {
     });
     req.on("error", reject);
   });
-}
-
-function squareScriptSrc(): string {
-  return env.squareEnvironment === "production"
-    ? "https://web.squarecdn.com/v1/square.js"
-    : "https://sandbox.web.squarecdn.com/v1/square.js";
-}
-
-function buildSaveCardPage(input: {
-  applicationId: string;
-  locationId: string;
-  linkToken: string;
-}): string {
-  const scriptSrc = squareScriptSrc();
-  const appIdJson = JSON.stringify(input.applicationId);
-  const locIdJson = JSON.stringify(input.locationId);
-  const tokenJson = JSON.stringify(input.linkToken);
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>Add card — Square</title>
-  <style>
-    body { font-family: system-ui, sans-serif; max-width: 28rem; margin: 2rem auto; padding: 0 1rem; }
-    #card-container { min-height: 90px; margin: 1rem 0; }
-    #msg { color: #b00020; min-height: 1.25rem; }
-    button { padding: 0.5rem 1rem; font-size: 1rem; cursor: pointer; }
-  </style>
-</head>
-<body>
-  <h1>Save card</h1>
-  <p>Enter your card details. Nothing is typed in Telegram.</p>
-  <form id="card-form">
-    <div id="card-container"></div>
-    <button type="submit">Save card</button>
-  </form>
-  <p id="msg"></p>
-  <script src="${scriptSrc}"></script>
-  <script>
-    (function () {
-      const APP_ID = ${appIdJson};
-      const LOCATION_ID = ${locIdJson};
-      const LINK_TOKEN = ${tokenJson};
-
-      async function run() {
-        var msg = document.getElementById("msg");
-        if (!window.Square) {
-          if (msg) msg.textContent = "Square.js failed to load.";
-          return;
-        }
-        try {
-          var payments = window.Square.payments(APP_ID, LOCATION_ID);
-          var card = await payments.card();
-          await card.attach("#card-container");
-          var form = document.getElementById("card-form");
-          if (!form) return;
-          form.addEventListener("submit", async function (e) {
-            e.preventDefault();
-            if (msg) msg.textContent = "";
-            var tokenResult = await card.tokenize();
-            if (tokenResult.status !== "OK") {
-              if (msg) msg.textContent = (tokenResult.errors && tokenResult.errors[0] && tokenResult.errors[0].message) || "Could not tokenize card.";
-              return;
-            }
-            var nonce = tokenResult.token;
-            var res = await fetch("/square/save-card/complete", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ token: LINK_TOKEN, nonce: nonce }),
-            });
-            var data = await res.json().catch(function () { return {}; });
-            if (!res.ok) {
-              if (msg) msg.textContent = data.error || ("Error " + res.status);
-              return;
-            }
-            if (msg) msg.textContent = "Card saved. You can close this tab and return to Telegram.";
-            if (msg) msg.style.color = "#0d47a1";
-          });
-        } catch (err) {
-          if (msg) msg.textContent = err && err.message ? err.message : "Could not start Square card form.";
-        }
-      }
-      void run();
-    })();
-  </script>
-</body>
-</html>`;
 }
 
 /**
@@ -159,7 +70,7 @@ export async function tryHandleSquareCardRoutes(
           .end("<p>No Square location found for this account.</p>");
         return true;
       }
-      const html = buildSaveCardPage({
+      const html = buildSquareSaveCardPage({
         applicationId: merchant.square_application_id,
         locationId,
         linkToken: token,

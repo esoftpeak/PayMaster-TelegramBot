@@ -1,7 +1,12 @@
 import type TelegramBot from "node-telegram-bot-api";
 import type { CallbackQuery, InlineKeyboardMarkup } from "node-telegram-bot-api";
 import { canViewAdminPanel, resolveTelegramAdminAuth } from "../auth/telegramAdmin";
-import { listActiveMerchants, getMerchantById, type MerchantPublic } from "../../db/merchants";
+import {
+  listActiveMerchants,
+  getMerchantById,
+  type MerchantGateway,
+  type MerchantPublic,
+} from "../../db/merchants";
 import { createGatewayPaymentService } from "../../services/payment";
 import type { NormalizedPaymentResult } from "../../services/payment";
 import {
@@ -22,7 +27,7 @@ const paymentGateway = createGatewayPaymentService();
 /** Auto-delete friendly charge success toast after this delay. */
 const CHARGE_SUCCESS_TOAST_MS = 5000;
 
-function friendlyChargeSuccessHtml(amountCents: number, currency: string): string {
+function friendlyChargeSuccessHtml(amountCents: number, currency: string, gateway: MerchantGateway): string {
   const code = currency.trim().toUpperCase() || "USD";
   let amountDisplay: string;
   try {
@@ -33,10 +38,11 @@ function friendlyChargeSuccessHtml(amountCents: number, currency: string): strin
   } catch {
     amountDisplay = `${(amountCents / 100).toFixed(2)} ${code}`;
   }
+  const via = gateway === "square" ? "Square" : "Stripe";
   return [
     "<b>Payment successful</b>",
     "",
-    `We charged <b>${escapeHtml(amountDisplay)}</b>.`,
+    `We charged <b>${escapeHtml(amountDisplay)}</b> via <b>${escapeHtml(via)}</b>.`,
     "",
     `<i>This message will disappear in ${CHARGE_SUCCESS_TOAST_MS / 1000} seconds.</i>`,
   ].join("\n");
@@ -184,13 +190,17 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
   return lines.join("\n");
 }
 
-export function paymentsKeyboard(hasSelectedMerchant: boolean): InlineKeyboardMarkup {
+export function paymentsKeyboard(
+  hasSelectedMerchant: boolean,
+  gateway: MerchantGateway | undefined,
+): InlineKeyboardMarkup {
   const rows: { text: string; callback_data: string }[][] = [];
   if (hasSelectedMerchant) {
     rows.push([{ text: "Verify card", callback_data: "pm:stub:v" }]);
+    const suffix = gateway === "square" ? " · Square" : gateway === "stripe" ? " · Stripe" : "";
     rows.push([
-      { text: "Charge $1.00 (test)", callback_data: "pm:stub:c:100" },
-      { text: "Charge $5.00 (test)", callback_data: "pm:stub:c:500" },
+      { text: `Charge $5.00${suffix}`, callback_data: "pm:stub:c:500" },
+      { text: `Charge $1.00${suffix}`, callback_data: "pm:stub:c:100" },
     ]);
   }
   rows.push([
@@ -327,7 +337,7 @@ export async function renderPaymentsScreen(
       selectedId !== undefined ? await getMerchantById(selectedId) : null;
     const html = buildPaymentsScreenHtml(selected);
     const canAct = selected !== null && selected.is_active;
-    const markup = paymentsKeyboard(canAct);
+    const markup = paymentsKeyboard(canAct, selected?.gateway);
     await editOrSend(bot, query, html, markup);
   } catch (err) {
     console.error("renderPaymentsScreen:", err);
@@ -393,7 +403,7 @@ export async function handleFlowCallback(bot: TelegramBot, query: CallbackQuery,
           merchantId: selectedId,
           amountCents: action.amountCents,
           currency: "usd",
-          description: "Telegram stub charge",
+          description: `PayMaster charge ${(action.amountCents / 100).toFixed(2)} USD`,
         });
       }
     } catch (err) {
@@ -408,9 +418,14 @@ export async function handleFlowCallback(bot: TelegramBot, query: CallbackQuery,
 
     if (action.kind === "chargeStub" && result.ok && result.operation === "charge") {
       const currency = currencyFromChargeResult(result);
-      const sent = await bot.sendMessage(chatId, friendlyChargeSuccessHtml(action.amountCents, currency), {
-        parse_mode: "HTML",
-      });
+      const gw = result.gateway;
+      const sent = await bot.sendMessage(
+        chatId,
+        friendlyChargeSuccessHtml(action.amountCents, currency, gw),
+        {
+          parse_mode: "HTML",
+        },
+      );
       setTimeout(() => {
         void bot.deleteMessage(chatId, sent.message_id).catch(() => undefined);
       }, CHARGE_SUCCESS_TOAST_MS);

@@ -9,7 +9,7 @@ export async function createBot(token: string): Promise<TelegramBot> {
     await registerTelegramProfile(bot);
   } catch (err) {
     console.warn(
-      "Could not register bot profile (description / commands). Bot will still run.",
+      "Could not update the bot profile (description and command list). The bot will continue running.",
       err,
     );
   }

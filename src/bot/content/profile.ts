@@ -14,18 +14,18 @@ type TelegramBotProfileMethods = {
 
 /** Shown on the bot profile when shared (max 120 characters). */
 export const BOT_SHORT_DESCRIPTION =
-  "Admin panel for Stripe & Square: merchants, card verification, and charges — in one chat.";
+  "Operator console for Stripe and Square: merchants, card verification, and payments — in one chat.";
 
 /**
  * Shown in the empty chat before the user taps Start ("What can this bot do?").
  * Max 512 characters — keep concise, like BotFather's intro.
  */
 export const BOT_LONG_DESCRIPTION = [
-  "PayMaster is your operator console for card acquiring.",
+  "PayMaster is your operator console for card payments.",
   "",
-  "Verify cards (card-on-file), run direct charges, and manage multiple merchant accounts connected to Stripe or Square.",
+  "Verify cards for card-on-file use, process charges, and work with multiple merchant accounts on Stripe or Square.",
   "",
-  "Tap Start below to open the main menu. Use the ☰ menu for commands.",
+  "Tap Start to open the main menu. Use the ☰ menu for commands.",
   "",
 ].join("\n");
 
@@ -35,9 +35,9 @@ export async function registerTelegramProfile(bot: TelegramBot): Promise<void> {
   await api.setMyDescription({ description: BOT_LONG_DESCRIPTION });
   await bot.setMyCommands([
     { command: "start", description: "Home — main menu" },
-    { command: "menu", description: "Open main menu" },
-    { command: "help", description: "Help & information" },
-    { command: "merchant", description: "Merchants — list or ask admins to add" },
-    { command: "admin", description: "Operators: list, add, remove users" },
+    { command: "menu", description: "Open the main menu" },
+    { command: "help", description: "Help and information" },
+    { command: "merchant", description: "Merchants — list; admins add accounts" },
+    { command: "admin", description: "Manage operators (list, add, remove)" },
   ]);
 }

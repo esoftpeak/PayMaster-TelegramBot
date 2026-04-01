@@ -81,7 +81,7 @@ export function startStripeWebhookServer(): http.Server {
 
   server.listen(env.httpPort, () => {
     console.log(
-      `HTTP listening on port ${env.httpPort} (Stripe webhooks, Square card form, Checkout return pages).`,
+      `HTTP server listening on port ${env.httpPort} (Stripe webhooks, Square card capture, Checkout return pages).`,
     );
   });
 

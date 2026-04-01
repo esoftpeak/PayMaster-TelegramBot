@@ -114,15 +114,15 @@ export function buildMerchantsScreenHtml(
     "",
   ];
   if (merchants.length === 0) {
-    lines.push("<i>No merchants yet.</i> Ask a bot admin to add your first one.");
+    lines.push("<i>No merchants yet.</i> Ask an administrator to add your first merchant.");
   } else if (selectedId === undefined) {
     lines.push("<b>Selected</b>: <i>none</i> — pick a row below.");
   } else {
     const sel = merchants.find((m) => m.id === selectedId);
     if (sel === undefined) {
-      lines.push("<b>Selected</b>: <i>stale selection</i> — choose again.");
+      lines.push("<b>Selected</b>: <i>selection outdated</i> — choose a merchant again.");
     } else {
-      const cred = sel.credentialsConfigured ? "connected" : "simulation only until gateway is set up";
+      const cred = sel.credentialsConfigured ? "Connected" : "Demo mode — payment credentials not configured";
       lines.push(
         `<b>Selected</b>: ${escapeHtml(sel.display_name)} (${sel.gateway}) — credentials: ${escapeHtml(cred)}`,
       );
@@ -155,7 +155,7 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
   const lines = [
     "<b>Cards &amp; payments</b>",
     "",
-    "Card and payment actions return normalized gateway results and save records for audit/testing.",
+    "Card and payment actions return standard processor results and retain records for accounting and support.",
     "",
   ];
   if (selected === null) {
@@ -167,7 +167,7 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
     lines.push("");
     lines.push("This merchant is turned off. Choose an active one under <b>Merchants</b>.");
   } else {
-    const cred = selected.credentialsConfigured ? "connected" : "simulation only until gateway is set up";
+    const cred = selected.credentialsConfigured ? "Connected" : "Demo mode — payment credentials not configured";
     lines.push(`<b>Merchant</b>: ${escapeHtml(selected.display_name)}`);
     lines.push(`<b>Gateway</b>: ${escapeHtml(selected.gateway)} — ${escapeHtml(cred)}`);
     lines.push("");
@@ -183,7 +183,7 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
         "• <b>Verify card</b> — opens a hosted Square card form (Web Payments SDK); card is saved on the Square customer.",
       );
       lines.push(
-        "• <b>Charge</b> — real Square payment on the <b>latest verified</b> saved card (sandbox vs production follows <code>SQUARE_ENVIRONMENT</code> and your keys).",
+        "• <b>Charge</b> — Square payment on the <b>latest verified</b> saved card (test or live follows your Square app mode and API credentials).",
       );
     }
   }

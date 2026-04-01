@@ -4,13 +4,13 @@ import { verifySupabaseConnection } from "./db/supabase";
 import { startStripeWebhookServer } from "./http/stripeWebhookServer";
 
 async function main(): Promise<void> {
-  const db = await verifySupabaseConnection();
-  if (!db.ok) {
-    console.error("Database connection failed:", db.error);
+  const backend = await verifySupabaseConnection();
+  if (!backend.ok) {
+    console.error("Backend unavailable:", backend.error);
     process.exitCode = 1;
     return;
   }
-  console.log("Database connection OK.");
+  console.log("Backend connection verified.");
 
   startStripeWebhookServer();
 

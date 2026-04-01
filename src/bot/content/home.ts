@@ -48,21 +48,21 @@ export function buildScreenHtml(screen: MenuScreen): string {
       return [
         "<b>PayMaster</b>",
         "",
-        "Operator console for <b>Stripe</b> and <b>Square</b>: merchants, card verification, and charges.",
+        "Operator console for <b>Stripe</b> and <b>Square</b>: merchants, card verification, and payments.",
         "",
-        "Use the buttons below or the command menu (☰).",
+        "Use the buttons below or the menu (☰).",
       ].join("\n");
     case "merchants":
       return [
         "<b>Merchants</b>",
         "",
-        "Choose which business you’re working with. Operators see the live list after this screen loads.",
+        "Choose which business you are working with. The list loads when you open this screen.",
       ].join("\n");
     case "payments":
       return [
         "<b>Cards &amp; payments</b>",
         "",
-        "Verify cards and run charges for the merchant you selected. Operators see the full screen after this loads.",
+        "Verify cards and process charges for the selected merchant. Full options appear after this screen loads.",
       ].join("\n");
     case "help":
       return [
@@ -75,11 +75,11 @@ export function buildScreenHtml(screen: MenuScreen): string {
         "• /admin — Operator accounts (list, add, remove)",
         "• /merchant — Merchants (list; admins add new ones)",
         "",
-        "Operators: open <b>Merchants</b> to choose a business, then <b>Cards &amp; payments</b> for Stripe Checkout verify and real charges (Stripe) or simulated charges (Square).",
+        "Operators: open <b>Merchants</b> to choose a business, then <b>Cards &amp; payments</b> for card verification and charges through your connected Stripe or Square account.",
         "",
-        "Security: never send full card numbers in chat. Use hosted payment flows from Stripe or Square.",
+        "Security: never send full card numbers in chat. Use the secure card flows provided by Stripe or Square.",
         "",
-        "Support: contact your system administrator.",
+        "Support: contact your organization administrator.",
       ].join("\n");
   }
 }

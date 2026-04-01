@@ -1,6 +1,7 @@
 import { env } from "./config/env";
 import { createBot } from "./bot/bot";
 import { verifySupabaseConnection } from "./db/supabase";
+import { startStripeWebhookServer } from "./http/stripeWebhookServer";
 
 async function main(): Promise<void> {
   const db = await verifySupabaseConnection();
@@ -10,6 +11,8 @@ async function main(): Promise<void> {
     return;
   }
   console.log("Database connection OK.");
+
+  startStripeWebhookServer();
 
   await createBot(env.telegramBotToken);
   console.log("PayMaster bot is running (polling).");

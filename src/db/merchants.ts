@@ -11,11 +11,17 @@ export type MerchantRow = {
   stripe_publishable_key: string | null;
   square_application_id: string | null;
   square_access_token: string | null;
+  stripe_webhook_signing_secret: string | null;
   delay_between_operations_ms: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;
 };
+
+const MERCHANT_ROW_SELECT =
+  "id, slug, display_name, gateway, stripe_secret_key, stripe_publishable_key, square_application_id, square_access_token, stripe_webhook_signing_secret, delay_between_operations_ms, is_active, created_at, updated_at";
+
+export type MerchantCredentialsRow = MerchantRow;
 
 /** Safe for Telegram / logs — never includes raw secrets. */
 export type MerchantPublic = {
@@ -46,9 +52,7 @@ export async function listActiveMerchants(): Promise<MerchantPublic[]> {
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("merchants")
-    .select(
-      "id, slug, display_name, gateway, stripe_secret_key, stripe_publishable_key, square_application_id, square_access_token, delay_between_operations_ms, is_active, created_at, updated_at",
-    )
+    .select(MERCHANT_ROW_SELECT)
     .eq("is_active", true)
     .order("display_name", { ascending: true });
 
@@ -63,9 +67,7 @@ export async function getMerchantById(id: string): Promise<MerchantPublic | null
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from("merchants")
-    .select(
-      "id, slug, display_name, gateway, stripe_secret_key, stripe_publishable_key, square_application_id, square_access_token, delay_between_operations_ms, is_active, created_at, updated_at",
-    )
+    .select(MERCHANT_ROW_SELECT)
     .eq("id", id)
     .maybeSingle();
 
@@ -76,6 +78,27 @@ export async function getMerchantById(id: string): Promise<MerchantPublic | null
     return null;
   }
   return mapPublic(data as MerchantRow);
+}
+
+/**
+ * Internal/backend-only fetch that includes gateway credentials.
+ * Do not pass this object to Telegram responses or logs.
+ */
+export async function getMerchantCredentialsById(id: string): Promise<MerchantCredentialsRow | null> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from("merchants")
+    .select(MERCHANT_ROW_SELECT)
+    .eq("id", id)
+    .maybeSingle();
+
+  if (error !== null) {
+    throw new Error(error.message);
+  }
+  if (data === null) {
+    return null;
+  }
+  return data as MerchantCredentialsRow;
 }
 
 export async function insertMerchant(input: {
@@ -91,9 +114,7 @@ export async function insertMerchant(input: {
       display_name: input.displayName,
       gateway: input.gateway,
     })
-    .select(
-      "id, slug, display_name, gateway, stripe_secret_key, stripe_publishable_key, square_application_id, square_access_token, delay_between_operations_ms, is_active, created_at, updated_at",
-    )
+    .select(MERCHANT_ROW_SELECT)
     .single();
 
   if (error !== null) {

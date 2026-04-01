@@ -2,7 +2,7 @@ import type TelegramBot from "node-telegram-bot-api";
 import type { CallbackQuery, InlineKeyboardMarkup } from "node-telegram-bot-api";
 import { canViewAdminPanel, resolveTelegramAdminAuth } from "../auth/telegramAdmin";
 import { listActiveMerchants, getMerchantById, type MerchantPublic } from "../../db/merchants";
-import { createStubGatewayPaymentService } from "../../services/payment";
+import { createGatewayPaymentService } from "../../services/payment";
 import type { NormalizedPaymentResult } from "../../services/payment";
 import {
   clearSelectedMerchant,
@@ -17,13 +17,17 @@ const CALLBACK = {
   help: "pm:help",
 } as const;
 
-const stubGateway = createStubGatewayPaymentService();
+const paymentGateway = createGatewayPaymentService();
 
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
+}
+
+function escapeHtmlAttr(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 }
 
 function isUuid(s: string): boolean {
@@ -112,7 +116,7 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
   const lines = [
     "<b>Cards &amp; payments</b>",
     "",
-    "Right now actions run as <b>simulations</b> — you’ll get a clear result in chat, and records are saved for testing. When your gateway is connected for real, the same buttons will drive live flows.",
+    "Card and payment actions return normalized gateway results and save records for audit/testing.",
     "",
   ];
   if (selected === null) {
@@ -128,7 +132,9 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
     lines.push(`<b>Merchant</b>: ${escapeHtml(selected.display_name)}`);
     lines.push(`<b>Gateway</b>: ${escapeHtml(selected.gateway)} — ${escapeHtml(cred)}`);
     lines.push("");
-    lines.push("• <b>Verify card</b> — practice run for saving a card on file.");
+    lines.push(
+      "• <b>Verify card</b> — Stripe opens a secure Checkout link; after you finish, the card is marked verified via webhook.",
+    );
     lines.push("• <b>Charge</b> — practice run for a small test amount.");
   }
   return lines.join("\n");
@@ -137,7 +143,7 @@ export function buildPaymentsScreenHtml(selected: MerchantPublic | null): string
 export function paymentsKeyboard(hasSelectedMerchant: boolean): InlineKeyboardMarkup {
   const rows: { text: string; callback_data: string }[][] = [];
   if (hasSelectedMerchant) {
-    rows.push([{ text: "Verify card (simulation)", callback_data: "pm:stub:v" }]);
+    rows.push([{ text: "Verify card", callback_data: "pm:stub:v" }]);
     rows.push([
       { text: "Charge $1.00 (test)", callback_data: "pm:stub:c:100" },
       { text: "Charge $5.00 (test)", callback_data: "pm:stub:c:500" },
@@ -153,7 +159,20 @@ export function paymentsKeyboard(hasSelectedMerchant: boolean): InlineKeyboardMa
 function formatNormalizedResultHtml(result: NormalizedPaymentResult): string {
   const status = result.ok ? "OK" : "Failed";
   const refs = JSON.stringify(result.gatewayRefs, null, 2);
-  const payload = result.payload !== undefined ? JSON.stringify(result.payload, null, 2) : "";
+  let payloadForPre = "";
+  let checkoutUrl: string | undefined;
+  if (result.payload !== undefined) {
+    const copy = { ...result.payload } as Record<string, unknown>;
+    const url = copy.checkout_url;
+    if (typeof url === "string" && url.length > 0) {
+      checkoutUrl = url;
+    }
+    delete copy.checkout_url;
+    if (Object.keys(copy).length > 0) {
+      payloadForPre = JSON.stringify(copy, null, 2);
+    }
+  }
+
   const blocks = [
     `<b>${escapeHtml(status)}</b> · ${escapeHtml(result.operation)} · ${escapeHtml(result.gateway)}`,
     "",
@@ -165,8 +184,14 @@ function formatNormalizedResultHtml(result: NormalizedPaymentResult): string {
     "<b>Gateway refs</b>",
     `<pre>${escapeHtml(refs)}</pre>`,
   ];
-  if (payload.length > 0) {
-    blocks.push("", "<b>Payload</b>", `<pre>${escapeHtml(payload)}</pre>`);
+  if (checkoutUrl !== undefined && checkoutUrl.length > 0) {
+    blocks.push(
+      "",
+      `<a href="${escapeHtmlAttr(checkoutUrl)}">Open secure card form (Stripe Checkout)</a>`,
+    );
+  }
+  if (payloadForPre.length > 0) {
+    blocks.push("", "<b>Payload</b>", `<pre>${escapeHtml(payloadForPre)}</pre>`);
   }
   return blocks.join("\n");
 }
@@ -318,9 +343,9 @@ export async function handleFlowCallback(bot: TelegramBot, query: CallbackQuery,
     let result: NormalizedPaymentResult;
     try {
       if (action.kind === "verifyStub") {
-        result = await stubGateway.verifyCard({ merchantId: selectedId });
+        result = await paymentGateway.verifyCard({ merchantId: selectedId });
       } else {
-        result = await stubGateway.charge({
+        result = await paymentGateway.charge({
           merchantId: selectedId,
           amountCents: action.amountCents,
           currency: "usd",

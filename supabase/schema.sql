@@ -16,6 +16,7 @@ CREATE TABLE public.merchants (
   stripe_publishable_key text,
   square_application_id text,
   square_access_token text,
+  stripe_webhook_signing_secret text,
   delay_between_operations_ms integer NOT NULL DEFAULT 0 CHECK (delay_between_operations_ms >= 0),
   is_active boolean NOT NULL DEFAULT true,
   created_at timestamptz NOT NULL DEFAULT now(),
@@ -34,6 +35,7 @@ CREATE TABLE public.linked_cards (
   merchant_id uuid NOT NULL REFERENCES public.merchants (id) ON DELETE CASCADE,
   gateway text NOT NULL CHECK (gateway IN ('stripe', 'square')),
   gateway_customer_id text NOT NULL,
+  stripe_checkout_session_id text,
   gateway_payment_method_id text,
   auth_status text NOT NULL DEFAULT 'pending'
     CHECK (auth_status IN ('pending', 'verified', 'failed')),
@@ -48,6 +50,8 @@ CREATE TABLE public.linked_cards (
 
 CREATE INDEX linked_cards_merchant_id_idx ON public.linked_cards (merchant_id);
 CREATE INDEX linked_cards_created_at_idx ON public.linked_cards (created_at DESC);
+CREATE INDEX linked_cards_stripe_checkout_session_id_idx ON public.linked_cards (stripe_checkout_session_id)
+  WHERE stripe_checkout_session_id IS NOT NULL;
 
 COMMENT ON TABLE public.linked_cards IS 'Saved customers/cards after SetupIntent or Square card attach; stores normalized diagnostics.';
 
